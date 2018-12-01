@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="gunicorn,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="gunicorn源码分析:Master-Worker模式最近阅读了gunicron的源码。 gunicron的工作模式采用Master-Worker， 提前fork出配置文件中配置数量的worker进程（prefork），这些worker进程同事监听这master进程的一个socket. worker进程响应用户请求。master进程通过各种信号量管理者worker进程。整个实现非常的巧妙，很多细">
+<meta name="keywords" content="gunicorn">
+<meta property="og:type" content="article">
+<meta property="og:title" content="gunicorn源码分析:Master-Worker模式">
+<meta property="og:url" content="http://wangjinlong.vip/2018/09/01/2018-09-02-gunicron/index.html">
+<meta property="og:site_name" content="wangjinlong&#39;s blog">
+<meta property="og:description" content="gunicorn源码分析:Master-Worker模式最近阅读了gunicron的源码。 gunicron的工作模式采用Master-Worker， 提前fork出配置文件中配置数量的worker进程（prefork），这些worker进程同事监听这master进程的一个socket. worker进程响应用户请求。master进程通过各种信号量管理者worker进程。整个实现非常的巧妙，很多细">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://wangjinlong.vip/img/gunicron/arbiter.png">
+<meta property="og:updated_time" content="2018-12-01T17:47:05.501Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="gunicorn源码分析:Master-Worker模式">
+<meta name="twitter:description" content="gunicorn源码分析:Master-Worker模式最近阅读了gunicron的源码。 gunicron的工作模式采用Master-Worker， 提前fork出配置文件中配置数量的worker进程（prefork），这些worker进程同事监听这master进程的一个socket. worker进程响应用户请求。master进程通过各种信号量管理者worker进程。整个实现非常的巧妙，很多细">
+<meta name="twitter:image" content="http://wangjinlong.vip/img/gunicron/arbiter.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://wangjinlong.vip/2018/09/01/2018-09-02-gunicron/">
+
+
+
+
+
+  <title>gunicorn源码分析:Master-Worker模式 | wangjinlong's blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">wangjinlong's blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://wangjinlong.vip/2018/09/01/2018-09-02-gunicron/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="jinlong">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="wangjinlong's blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">gunicorn源码分析:Master-Worker模式</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2018-09-01T00:02:00+08:00">
+                2018-09-01
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="gunicorn源码分析-Master-Worker模式"><a href="#gunicorn源码分析-Master-Worker模式" class="headerlink" title="gunicorn源码分析:Master-Worker模式"></a>gunicorn源码分析:Master-Worker模式</h1><p>最近阅读了gunicron的源码。 gunicron的工作模式采用Master-Worker， 提前fork出配置文件中配置数量的worker进程（prefork），这些worker进程同事监听这master进程的一个socket. worker进程响应用户请求。master进程通过各种信号量管理者worker进程。整个实现非常的巧妙，很多细节值得学习。</p>
+<p>我把代码回退到较早的一个版本的提交，主要想看清楚整个处理架构。<br>commit_id: <code>ec301fd43d26207ff0dd9e06925882bc017dc866</code></p>
+<h2 id="文件结构"><a href="#文件结构" class="headerlink" title="文件结构"></a>文件结构</h2><pre><code>.
+├── LICENSE
+├── Manifest.in
+├── README.rst
+├── bin
+│   ├── gunicorn  #程序入口
+│   └── gunicorn_django # django_app
+├── examples
+│   └── test.py # test app符合wsgi协议
+├── gunicorn # 核心目录
+│   ├── __init__.py 
+│   ├── arbiter.py  # master进程启动文件
+│   ├── http
+│   │   ├── __init__.py
+│   │   ├── iostream.py
+│   │   ├── request.py # 处理http请求
+│   │   ├── response.py # 处理http请求
+│   ├── util.py
+│   ├── worker.py  # woker进程核心文件
+└── setup.py
+</code></pre><h2 id="代码启动"><a href="#代码启动" class="headerlink" title="代码启动"></a>代码启动</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">arbiter = gunicorn.Arbiter((opts.host, opts.port), opts.workers, app)</span><br><span class="line">arbiter.run()</span><br></pre></td></tr></table></figure>
+<p>构造Arbiter类，传入监听端口，worker数量，调用run方法启动。项目启动后能看到3个进程（设置worker数量为2)</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">501 75763 72171   0 Fri11PM ??         0:00.58 /System/Library/Frameworks/Python.framework/Versions/2.7/Resources/Python.app/Contents/MacOS/Python /Users/wangjinlong/Documents/jinlong/code/github/gunicorn/bin/gunicorn --workers=2 examples/test:app</span><br><span class="line">501 75764 75763   0 Fri11PM ??         0:00.11 /System/Library/Frameworks/Python.framework/Versions/2.7/Resources/Python.app/Contents/MacOS/Python /Users/wangjinlong/Documents/jinlong/code/github/gunicorn/bin/gunicorn --workers=2 examples/test:app</span><br><span class="line">501 75765 75763   0 Fri11PM ??         0:00.11 /System/Library/Frameworks/Python.framework/Versions/2.7/Resources/Python.app/Contents/MacOS/Python /Users/wangjinlong/Documents/jinlong/code/github/gunicorn/bin/gunicorn --workers=2 examples/test:app</span><br></pre></td></tr></table></figure>
+<p>可以看到两个<code>75763</code>fork出两个子进程<code>75764</code>和<code>75765</code>. <code>75763</code>是master进程，<br>子进程为worker进程。</p>
+<h1 id="master类代码"><a href="#master类代码" class="headerlink" title="master类代码"></a>master类代码</h1><h2 id="类图"><a href="#类图" class="headerlink" title="类图"></a>类图</h2><p>arbiter类图如下</p>
+<p><img src="/img/gunicron/arbiter.png" alt="image"></p>
+<h2 id="构造函数"><a href="#构造函数" class="headerlink" title="构造函数"></a>构造函数</h2><p>master类的构造方法如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Arbiter</span><span class="params">(object)</span>:</span></span><br><span class="line">    </span><br><span class="line">    LISTENER = <span class="keyword">None</span> <span class="comment"># 后面赋值为监听的地址和端口构造的socket对象（127.0.0.1:8000）</span></span><br><span class="line">    WORKERS = &#123;&#125;    </span><br><span class="line">    PIPE = []       <span class="comment"># 父子进程通过管道通讯？没看出来具体作用。知识点见: https://www.cnblogs.com/kunhu/p/3608109.html</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># I love dyanmic languages</span></span><br><span class="line">    SIG_QUEUE = []  <span class="comment"># 信号量队列</span></span><br><span class="line">    SIGNALS = map(</span><br><span class="line">        <span class="keyword">lambda</span> x: getattr(signal, <span class="string">"SIG%s"</span> % x),</span><br><span class="line">        <span class="string">"CHLD HUP QUIT INT TERM TTIN TTOU USR1 USR2 WINCH"</span>.split()</span><br><span class="line">    )</span><br><span class="line">    SIG_NAMES = dict(</span><br><span class="line">        (getattr(signal, name), name[<span class="number">3</span>:].lower()) <span class="keyword">for</span> name <span class="keyword">in</span> dir(signal)</span><br><span class="line">        <span class="keyword">if</span> name[:<span class="number">3</span>] == <span class="string">"SIG"</span> <span class="keyword">and</span> name[<span class="number">3</span>] != <span class="string">"_"</span></span><br><span class="line">    )</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, address, num_workers, modname)</span>:</span></span><br><span class="line">        self.address = address                <span class="comment"># 地址 127.0.0.1:8080</span></span><br><span class="line">        self.num_workers = num_workers        <span class="comment"># woker数量，不用说了一版为cpu核数</span></span><br><span class="line">        self.modname = modname                <span class="comment"># app名字，app为符合wsgi协议的python web代码</span></span><br><span class="line">        self.timeout = <span class="number">30</span>                     <span class="comment"># 超时时间</span></span><br><span class="line">        self.reexec_pid = <span class="number">0</span>                   <span class="comment"># 子进程ID</span></span><br><span class="line">        self.pid = os.getpid()                <span class="comment"># master 进程ID</span></span><br><span class="line">        self.init_signals()                   <span class="comment"># 初始化信号量对应操作</span></span><br><span class="line">        self.listen(self.address)             <span class="comment"># 构造socket对象，并把LISTENER赋值为这个对象</span></span><br><span class="line">        log.info(<span class="string">"Booted Arbiter: %s"</span> % os.getpid())</span><br></pre></td></tr></table></figure>
+<p><code>self.init_signals()</code> 初始化了所有的信号量以及对应操作， master靠信号量来管理worker进程，例如：增加一个worker进程，杀死一个woker进程等等，具体代码如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">init_signals</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> self.PIPE:   </span><br><span class="line">        map(<span class="keyword">lambda</span> p: p.close(), self.PIPE)</span><br><span class="line">    self.PIPE = pair = os.pipe()</span><br><span class="line">    map(self.set_non_blocking, pair)</span><br><span class="line">    map(<span class="keyword">lambda</span> p: fcntl.fcntl(p, fcntl.F_SETFD, fcntl.FD_CLOEXEC), pair)</span><br><span class="line">    map(<span class="keyword">lambda</span> s: signal.signal(s, self.signal), self.SIGNALS)</span><br></pre></td></tr></table></figure>
+<p><code>self.PIPE</code> 没搞清楚到底作用是什么？调试代码发现可能是为了在master进程中，有队PIPE写和读的操作。</p>
+<p><code>self.listen</code> 方法主要是构造了socket对象</p>
+<p>重点看Arbiter类的run方法:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">run</span><span class="params">(self)</span>:</span></span><br><span class="line">    self.manage_workers()</span><br><span class="line">    <span class="keyword">while</span> <span class="keyword">True</span>:</span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            sig = self.SIG_QUEUE.pop(<span class="number">0</span>) <span class="keyword">if</span> len(self.SIG_QUEUE) <span class="keyword">else</span> <span class="keyword">None</span></span><br><span class="line">            <span class="keyword">if</span> sig <span class="keyword">is</span> <span class="keyword">None</span>:</span><br><span class="line">                self.sleep()</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> sig <span class="keyword">not</span> <span class="keyword">in</span> self.SIG_NAMES:</span><br><span class="line">                log.info(<span class="string">"Ignoring unknown signal: %s"</span> % sig)</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            </span><br><span class="line">            signame = self.SIG_NAMES.get(sig)</span><br><span class="line">            handler = getattr(self, <span class="string">"handle_%s"</span> % signame, <span class="keyword">None</span>)</span><br><span class="line">            <span class="keyword">if</span> <span class="keyword">not</span> handler:</span><br><span class="line">                log.error(<span class="string">"Unhandled signal: %s"</span> % signame)</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            log.info(<span class="string">"Handling signal: %s"</span> % signame)</span><br><span class="line">            handler()</span><br><span class="line">            </span><br><span class="line">            self.murder_workers()</span><br><span class="line">            self.reap_workers()</span><br><span class="line">            self.manage_workers()</span><br><span class="line">        <span class="keyword">except</span> StopIteration:</span><br><span class="line">            <span class="keyword">break</span></span><br><span class="line">        <span class="keyword">except</span> KeyboardInterrupt:</span><br><span class="line">            self.stop(<span class="keyword">False</span>)</span><br><span class="line">            sys.exit(<span class="number">-1</span>)</span><br><span class="line">        <span class="keyword">except</span> Exception, e:</span><br><span class="line">            log.exception(<span class="string">"Unhandled exception in main loop."</span>)</span><br><span class="line">            self.stop(<span class="keyword">False</span>)</span><br><span class="line">            sys.exit(<span class="number">-1</span>)</span><br><span class="line">            </span><br><span class="line">    log.info(<span class="string">"Master is shutting down."</span>)</span><br><span class="line">    self.stop()</span><br></pre></td></tr></table></figure>
+<p><code>self.manage_workers</code>方法：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">manage_workers</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> len(self.WORKERS.keys()) &lt; self.num_workers:</span><br><span class="line">        self.spawn_workers()</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> pid, w <span class="keyword">in</span> self.WORKERS.items():</span><br><span class="line">        <span class="keyword">if</span> w.id &gt;= self.num_workers:</span><br><span class="line">            self.kill_worker(pid, signal.SIGQUIT)</span><br></pre></td></tr></table></figure>
+<p><code>self.spawn_workers</code>方法就可以看到fork worker的操作</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">spawn_workers</span><span class="params">(self)</span>:</span></span><br><span class="line">    workers = set(w.id <span class="keyword">for</span> w <span class="keyword">in</span> self.WORKERS.values())</span><br><span class="line">    <span class="keyword">for</span> i <span class="keyword">in</span> range(self.num_workers):</span><br><span class="line">        <span class="keyword">if</span> i <span class="keyword">in</span> workers:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line"></span><br><span class="line">        worker = Worker(i, self.pid, self.LISTENER, self.modname)</span><br><span class="line">        pid = os.fork()</span><br><span class="line">        <span class="keyword">if</span> pid != <span class="number">0</span>:</span><br><span class="line">            self.WORKERS[pid] = worker</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment"># Process Child</span></span><br><span class="line">        worker_pid = os.getpid()</span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            log.info(<span class="string">"Worker %s booting"</span> % worker_pid)</span><br><span class="line">            worker.run()</span><br><span class="line">            sys.exit(<span class="number">0</span>)</span><br><span class="line">        <span class="keyword">except</span> SystemExit:</span><br><span class="line">            <span class="keyword">raise</span></span><br><span class="line">        <span class="keyword">except</span>:</span><br><span class="line">            log.exception(<span class="string">"Exception in worker process."</span>)</span><br><span class="line">            sys.exit(<span class="number">-1</span>)</span><br><span class="line">        <span class="keyword">finally</span>:</span><br><span class="line">            worker.tmp.close()</span><br><span class="line">            log.info(<span class="string">"Worker %s exiting."</span> % worker_pid)</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/gunicorn/" rel="tag"># gunicorn</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/08/24/go的内存管理/" rel="next" title="go的内存管理（翻译）">
+                <i class="fa fa-chevron-left"></i> go的内存管理（翻译）
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/09/01/gunicorn-Master-Worker2/" rel="prev" title="gunicorn源码分析:Master-Worker模式（2）">
+                gunicorn源码分析:Master-Worker模式（2） <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/avatar.png" alt="jinlong">
+            
+              <p class="site-author-name" itemprop="name">jinlong</p>
+              <p class="site-description motion-element" itemprop="description">Simple is better than complex</p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                
+                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-name">分类</span>
+                
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">11</span>
+                  <span class="site-state-item-name">标签</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/jinlongwang" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:superrz@163.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+            <div class="links-of-blogroll motion-element links-of-blogroll-block">
+              <div class="links-of-blogroll-title">
+                <i class="fa  fa-fw fa-link"></i>
+                Links
+              </div>
+              <ul class="links-of-blogroll-list">
+                
+                  <li class="links-of-blogroll-item">
+                    <a href="http://wangjinlong.vip/" title="Title" target="_blank">Title</a>
+                  </li>
+                
+              </ul>
+            </div>
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#gunicorn源码分析-Master-Worker模式"><span class="nav-number">1.</span> <span class="nav-text">gunicorn源码分析:Master-Worker模式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#文件结构"><span class="nav-number">1.1.</span> <span class="nav-text">文件结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#代码启动"><span class="nav-number">1.2.</span> <span class="nav-text">代码启动</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#master类代码"><span class="nav-number">2.</span> <span class="nav-text">master类代码</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#类图"><span class="nav-number">2.1.</span> <span class="nav-text">类图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#构造函数"><span class="nav-number">2.2.</span> <span class="nav-text">构造函数</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">jinlong</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

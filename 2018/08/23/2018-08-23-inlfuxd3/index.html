@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="ops,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="inlfuxdb源码分析-写入分析（三）写TSM文件源码分析：从单测用例  $GOPATH/influxdata/influxdb/tsdb/engine/tsm1/writer_test.go#TestTSMWriter_Write_Single开始跟代码 12345678910111213func TestTSMWriter_Write_Single(t *testing.T) &amp;#123;">
+<meta name="keywords" content="ops">
+<meta property="og:type" content="article">
+<meta property="og:title" content="inlfuxdb源码分析-写入分析（三）">
+<meta property="og:url" content="http://wangjinlong.vip/2018/08/23/2018-08-23-inlfuxd3/index.html">
+<meta property="og:site_name" content="wangjinlong&#39;s blog">
+<meta property="og:description" content="inlfuxdb源码分析-写入分析（三）写TSM文件源码分析：从单测用例  $GOPATH/influxdata/influxdb/tsdb/engine/tsm1/writer_test.go#TestTSMWriter_Write_Single开始跟代码 12345678910111213func TestTSMWriter_Write_Single(t *testing.T) &amp;#123;">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://wangjinlong.vip/img/influxdb/tsm_index.png">
+<meta property="og:updated_time" content="2018-12-01T17:47:05.501Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="inlfuxdb源码分析-写入分析（三）">
+<meta name="twitter:description" content="inlfuxdb源码分析-写入分析（三）写TSM文件源码分析：从单测用例  $GOPATH/influxdata/influxdb/tsdb/engine/tsm1/writer_test.go#TestTSMWriter_Write_Single开始跟代码 12345678910111213func TestTSMWriter_Write_Single(t *testing.T) &amp;#123;">
+<meta name="twitter:image" content="http://wangjinlong.vip/img/influxdb/tsm_index.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://wangjinlong.vip/2018/08/23/2018-08-23-inlfuxd3/">
+
+
+
+
+
+  <title>inlfuxdb源码分析-写入分析（三） | wangjinlong's blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">wangjinlong's blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://wangjinlong.vip/2018/08/23/2018-08-23-inlfuxd3/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="jinlong">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="wangjinlong's blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">inlfuxdb源码分析-写入分析（三）</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2018-08-23T18:45:00+08:00">
+                2018-08-23
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="inlfuxdb源码分析-写入分析（三）"><a href="#inlfuxdb源码分析-写入分析（三）" class="headerlink" title="inlfuxdb源码分析-写入分析（三）"></a>inlfuxdb源码分析-写入分析（三）</h1><p>写TSM文件源码分析：<br>从单测用例  $GOPATH/influxdata/influxdb/tsdb/engine/tsm1/writer_test.go#TestTSMWriter_Write_Single开始跟代码</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TestTSMWriter_Write_Single</span><span class="params">(t *testing.T)</span></span> &#123;</span><br><span class="line">		   <span class="comment">//创建空文件夹，使用了ioutil.TempDir("", "tsm1-test”)，会根据两个参数随机生成文件夹</span></span><br><span class="line">		   dir := MustTempDir()</span><br><span class="line">		   <span class="comment">//函数运行完，删除该文件夹</span></span><br><span class="line">		   <span class="keyword">defer</span> os.RemoveAll(dir)</span><br><span class="line">		   <span class="comment">//调用ioutil.TempFile(dir, "tsm1test”)，返回临时文件</span></span><br><span class="line">		   f := MustTempFile(dir)</span><br><span class="line">		   <span class="comment">//构建TSMWriter对象， 所有关于tsm文件的写操作全由这个对象完成</span></span><br><span class="line">		   w, err := tsm1.NewTSMWriter(f)</span><br><span class="line">		   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		      t.Fatalf(<span class="string">"unexpected error creating writer: %v"</span>, err)</span><br><span class="line">		   &#125;</span><br><span class="line">		   . . .</span><br></pre></td></tr></table></figure>
+<p>我们来分析一下TSMWriter这个类</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> tsmWriter <span class="keyword">struct</span> &#123;</span><br><span class="line">	   wrapped io.Writer  <span class="comment">//这个不用说了， 任何实现了io.Writer接口的对象</span></span><br><span class="line">	   w       *bufio.Writer <span class="comment">//Writer implements buffering for an io.Writer object，一个带buffering的io.Writer对象</span></span><br><span class="line">	   index   IndexWriter   <span class="comment">//索引数据，IndexWriter是一个接口， 具体的实现类为 directIndex见下文</span></span><br><span class="line">	   n       <span class="keyword">int64</span></span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	writer.<span class="keyword">go</span>#<span class="number">240</span> </span><br><span class="line">	<span class="comment">// directIndex is a simple in-memory index implementation for a TSM file.  The full index</span></span><br><span class="line">	<span class="comment">// must fit in memory.</span></span><br><span class="line">	<span class="keyword">type</span> directIndex <span class="keyword">struct</span> &#123;</span><br><span class="line">	   mu     sync.RWMutex</span><br><span class="line">	   size   <span class="keyword">uint32</span></span><br><span class="line">	   blocks <span class="keyword">map</span>[<span class="keyword">string</span>]*indexEntries</span><br><span class="line">	&#125;</span><br><span class="line">	这个结构为了后面writeIndex准备</span><br><span class="line">	</span><br><span class="line">	Reader.<span class="keyword">go</span>#<span class="number">1342</span></span><br><span class="line">	<span class="keyword">type</span> indexEntries <span class="keyword">struct</span> &#123;</span><br><span class="line">	   Type    <span class="keyword">byte</span></span><br><span class="line">	   entries []IndexEntry</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	writer.<span class="keyword">go</span>#<span class="number">172</span></span><br><span class="line">	<span class="keyword">type</span> IndexEntry <span class="keyword">struct</span> &#123;</span><br><span class="line">	   <span class="comment">// The min and max time of all points stored in the block.</span></span><br><span class="line">	   MinTime, MaxTime <span class="keyword">int64</span></span><br><span class="line">	</span><br><span class="line">	   <span class="comment">// The absolute position in the file where this block is located.</span></span><br><span class="line">	   Offset <span class="keyword">int64</span></span><br><span class="line">	</span><br><span class="line">	   <span class="comment">// The size in bytes of the block in the file.</span></span><br><span class="line">	   Size <span class="keyword">uint32</span></span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	</span><br><span class="line">	<span class="comment">// NewTSMWriter returns a new TSMWriter writing to w.</span></span><br><span class="line">	<span class="function"><span class="keyword">func</span> <span class="title">NewTSMWriter</span><span class="params">(w io.Writer)</span> <span class="params">(TSMWriter, error)</span></span> &#123;</span><br><span class="line">	   index := &amp;directIndex&#123;</span><br><span class="line">	      blocks: <span class="keyword">map</span>[<span class="keyword">string</span>]*indexEntries&#123;&#125;,</span><br><span class="line">	   &#125;</span><br><span class="line">	</span><br><span class="line">	   <span class="keyword">return</span> &amp;tsmWriter&#123;wrapped: w, w: bufio.NewWriterSize(w, <span class="number">1024</span>*<span class="number">1024</span>), index: index&#125;, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+<p>看一下TSMWriter的write方法</p>
+<pre><code>// Write writes a new block containing key and values.
+func (t *tsmWriter) Write(key string, values Values) error {
+   //传入key和values，values对象我们后面再分析
+   if len(key) &gt; maxKeyLength {
+      return ErrMaxKeyLengthExceeded
+   }
+
+   // Nothing to write
+   if len(values) == 0 {
+      return nil
+   }
+
+   // Write header only after we have some data to write.
+   // 先写入头信息
+   if t.n == 0 {
+      if err := t.writeHeader(); err != nil {
+         return err
+      }
+   }
+
+   // 写入body信息，这里可以对照上文中给出的数据结构来看
+   block, err := values.Encode(nil)
+   if err != nil {
+      return err
+   }
+
+   blockType, err := BlockType(block)
+   if err != nil {
+      return err
+   }
+
+   var checksum [crc32.Size]byte
+   binary.BigEndian.PutUint32(checksum[:], crc32.ChecksumIEEE(block))
+
+   _, err = t.w.Write(checksum[:])
+   if err != nil {
+      return err
+   }
+
+   n, err := t.w.Write(block)
+   if err != nil {
+      return err
+   }
+   n += len(checksum)
+
+   // Record this block in index
+   // 写入directIndex
+   t.index.Add(key, blockType, values[0].UnixNano(), values[len(values)-1].UnixNano(), t.n, uint32(n))
+
+   // Increment file position pointer
+   t.n += int64(n)
+   return nil
+}
+
+
+//t.index.Add方法具体实现
+func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
+   d.mu.Lock()
+   defer d.mu.Unlock()
+
+   // d.block是 map[string]*indexEntries,最终大概的结构是
+   // ex： key是cpu，{cpu: [{‘MinTime’: xxx, ‘MaxTime’,:xxx, ‘offset’: xxx, ’size’: xxx}]， ‘mem’: ...}
+   entries := d.blocks[key]
+   if entries == nil {
+      entries = &amp;indexEntries{
+         Type: blockType,
+      }
+      d.blocks[key] = entries
+      // size of the key stored in the index
+      d.size += uint32(2 + len(key))
+
+      // size of the count of entries stored in the index
+      d.size += indexCountSize
+   }
+   //entries []IndexEntry
+   entries.entries = append(entries.entries, IndexEntry{
+      MinTime: minTime,
+      MaxTime: maxTime,
+      Offset:  offset,
+      Size:    size,
+   })
+
+   // size of the encoded index entry
+   d.size += indexEntrySize
+}
+</code></pre><p>下面我们看看tsmWriter的writeIndex方法的实现</p>
+<pre><code>func (t *tsmWriter) WriteIndex() error {
+   indexPos := t.n
+
+   if t.index.KeyCount() == 0 {
+      return ErrNoValues
+   }
+
+   // Write the index
+   if _, err := t.index.WriteTo(t.w); err != nil {
+      return err
+   }
+
+   var buf [8]byte
+   binary.BigEndian.PutUint64(buf[:], uint64(indexPos))
+
+   // Write the index index position
+   _, err := t.w.Write(buf[:])
+   return err
+}
+</code></pre><p>主要看t.index.WriteTo(t.w) 这个方法<br>要记住之前index的结构</p>
+<p> <img src="/img/influxdb/tsm_index.png" alt="image"></p>
+<pre><code>type directIndex struct {
+   mu     sync.RWMutex
+   size   uint32
+   blocks map[string]*indexEntries
+}
+这个结构为了后面writeIndex准备
+
+Reader.go#1342
+type indexEntries struct {
+   Type    byte
+   entries []IndexEntry
+}
+
+writer.go#172
+type IndexEntry struct {
+   // The min and max time of all points stored in the block.
+   MinTime, MaxTime int64
+
+   // The absolute position in the file where this block is located.
+   Offset int64
+
+   // The size in bytes of the block in the file.
+   Size uint32
+}
+//把用到的几个对象放在上面，以便看的更清楚一些
+
+
+
+func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
+   d.mu.RLock()
+   defer d.mu.RUnlock()
+
+   // Index blocks are writtens sorted by key
+   // keys: [‘cpu’, ‘mem’, xxxx]
+   keys := make([]string, 0, len(d.blocks))
+   for k := range d.blocks {
+      keys = append(keys, k)
+   }
+   // 字典排序
+   sort.Strings(keys)
+
+   var (
+      n   int
+      err error
+      buf [5]byte
+      N   int64
+   )
+
+   // For each key, individual entries are sorted by time
+   for _, key := range keys {
+      entries := d.blocks[key]
+
+      if entries.Len() &gt; maxIndexEntries {
+         return N, fmt.Errorf(&quot;key &apos;%s&apos; exceeds max index entries: %d &gt; %d&quot;, key, entries.Len(), maxIndexEntries)
+      }
+      sort.Sort(entries)
+      //2字节的key len
+      binary.BigEndian.PutUint16(buf[0:2], uint16(len(key)))
+      //1字节的key Type
+      buf[2] = entries.Type
+      //2字节的内容长度
+      binary.BigEndian.PutUint16(buf[3:5], uint16(entries.Len()))
+
+      // Append the key length and key
+      if n, err = w.Write(buf[0:2]); err != nil {
+         return int64(n) + N, fmt.Errorf(&quot;write: writer key length error: %v&quot;, err)
+      }
+      N += int64(n)
+
+      if n, err = io.WriteString(w, key); err != nil {
+         return int64(n) + N, fmt.Errorf(&quot;write: writer key error: %v&quot;, err)
+      }
+      N += int64(n)
+
+      // Append the block type and count
+      if n, err = w.Write(buf[2:5]); err != nil {
+         return int64(n) + N, fmt.Errorf(&quot;write: writer block type and count error: %v&quot;, err)
+      }
+      N += int64(n)
+
+      // Append each index entry for all blocks for this key
+      var n64 int64
+      //在主要看这个方法
+      if n64, err = entries.WriteTo(w); err != nil {
+         return n64 + N, fmt.Errorf(&quot;write: writer entries error: %v&quot;, err)
+      }
+      N += n64
+
+   }
+   return N, nil
+}
+
+
+func (a *indexEntries) WriteTo(w io.Writer) (total int64, err error) {
+   var buf [indexEntrySize]byte
+   var n int
+
+   for _, entry := range a.entries {
+      entry.AppendTo(buf[:])
+      n, err = w.Write(buf[:])
+      total += int64(n)
+      if err != nil {
+         return total, err
+      }
+   }
+
+   return total, nil
+}
+
+func (e *IndexEntry) AppendTo(b []byte) []byte {
+   if len(b) &lt; indexEntrySize {
+      if cap(b) &lt; indexEntrySize {
+         b = make([]byte, indexEntrySize)
+      } else {
+         b = b[:indexEntrySize]
+      }
+   }
+
+   binary.BigEndian.PutUint64(b[:8], uint64(e.MinTime))
+   binary.BigEndian.PutUint64(b[8:16], uint64(e.MaxTime))
+   binary.BigEndian.PutUint64(b[16:24], uint64(e.Offset))
+   binary.BigEndian.PutUint32(b[24:28], uint32(e.Size))
+
+   return b
+}
+</code></pre><p>至此写入数据已经完成，我们可以查看tsm产生的文件</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/ops/" rel="tag"># ops</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/08/20/2018-08-20-influxdb-2/" rel="next" title="inlfuxdb源码分析-文件结构（二）">
+                <i class="fa fa-chevron-left"></i> inlfuxdb源码分析-文件结构（二）
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/08/24/go的内存管理/" rel="prev" title="go的内存管理（翻译）">
+                go的内存管理（翻译） <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/avatar.png" alt="jinlong">
+            
+              <p class="site-author-name" itemprop="name">jinlong</p>
+              <p class="site-description motion-element" itemprop="description">Simple is better than complex</p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                
+                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-name">分类</span>
+                
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">11</span>
+                  <span class="site-state-item-name">标签</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/jinlongwang" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:superrz@163.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+            <div class="links-of-blogroll motion-element links-of-blogroll-block">
+              <div class="links-of-blogroll-title">
+                <i class="fa  fa-fw fa-link"></i>
+                Links
+              </div>
+              <ul class="links-of-blogroll-list">
+                
+                  <li class="links-of-blogroll-item">
+                    <a href="http://wangjinlong.vip/" title="Title" target="_blank">Title</a>
+                  </li>
+                
+              </ul>
+            </div>
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#inlfuxdb源码分析-写入分析（三）"><span class="nav-number">1.</span> <span class="nav-text">inlfuxdb源码分析-写入分析（三）</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">jinlong</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
